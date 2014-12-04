@@ -19,3 +19,4 @@ class DocItem(scrapy.Item):
     link = scrapy.Field()
     date = scrapy.Field()
     body = scrapy.Field()
+    
