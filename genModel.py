@@ -320,72 +320,108 @@ def writeModelFile(modelFile, posModel, negModel):
         raise
     else:
         file.close()
+
+def modeEach(dir, modelFilePrefix):
+    print "\nStarting modeEach, generate model for each doc in ", dir
+    # Get doc names 
+    names = []
+    try:
+        names = os.listdir(dir)
+        names.sort()   
+        logging.debug("Sorted file names of directory {0} are: {1}".format(dir, names))
+    except:
+        print "ERROR: Problem reading directory at path {0}".format(dir)
+        raise 
+
+    models = [] 
+    
+    # Read, process, and write each in turn. The upside here is in case of failure, we can resume from the point of failure.
+    for i in range(len(names)):
+        models.append(FeatureSet(polarity = 1))
+        fullPath = os.path.join(directory, name[i])
+        # Read each file, counting unigrams and bigrams as we do
+        print 'Reading file {0}...'.format(fullPath)
+        readFile(fullPath, models[i])
+    
+        # Find Log MLE probabilities based on counts
+        print '\tCalculating log MLE probabilities of unigram and bigram features...'
+        models[i].calculateProbabilities()
+        
+        # Write to model file
+        fileName = modelFilePrefix + '_' + repr(i) + '.model'
+        print 'Writing to model file: {0}...'.format(fileName)
+        writeModelFile(fileName, models[i])
+    
+def printHelp():
+    print "\nUsage: python genModel.py -d <dir> -m <modelFilePrefix> -a"
+    print "Operation: Generate a model for collection of documents in directory <dir> with model file name of <modelFilePrefix>_all.model"
+    print 'Options: '
+    print '\t-d <dir>\t\tSpecify directory of document collection'
+    print '\t--dir="<dir>"\t\tSame as above'
+    print '\n'
+    print '\t-m <modelFilePrefix>\t\tSpecify name of output model file (in all mode) or prefix of each file (in individual mode)'
+    print '\t--model="<modelFilePrefix>"\t\tSame as above. Output files will be of name <modelFilePrefix>.model'
+    print '\n'
+    print '\t-i\t\tSpecify execution mode "individual". Generates model file for each document in directory <dir>, of names <modelFilePrefix>[0-N].model'
+    print '\n'
+    print '\t-b\t\tSpecify execution mode "both". Generates model file for each document in directory <dir>, of names <modelFilePrefix>[0-N].model and model over all docs.'
+    print '\n'
+    print '\t-a\t\tSpecify execution mode "all". Generates model file for whole collection in <dir>, of name <modelFilePrefix>_all.model'
+    print '\n\n'
         
 def main(argv):
+    
+    # Whether model is all or each(individual). Mode both is when both are true
+    MODE_ALL = False
+    MODE_EACH = False
+    
+    dir = ""                # Directory of documents   
+    modelFilePrefix = ""    # Prefix of model files to be written
    
-    posDir = ""   
-    negDir = ""      
-    modelFile = ""
     
     try:
-        opts, args = getopt.getopt(argv, "hp:n:m:f:i:",["posDir=", "negDir=", "model="])
+        opts, args = getopt.getopt(argv, "hd:m:iab",["dir=", "model="])
     except getopt.GetoptError:
-        print "Usage: python generateNB.py -p <posDir> -n <negDir> -m <modelFilePrefix>"
-        print 'Usage: python generateNB.py --posDir="<posDir>" --negDir="<negDir> --model="<modelFilePrefix>"'
-        print "\t Where posDir is directory of positive review files, \nnegDir a directory of negative review files, and \nmodel will be the prefix of 10 names of the 10 generated model files.\nNames will be <prefix>_[0-9].nb"
+        printHelp()
         sys.exit(2)
     for opt, arg in opts:
         if opt == '-h':
-            print "Usage: python generateNB.py -p <posDir> -n <negDir> -m <modelFilePrefix>"
-            print 'Usage: python generateNB.py --posDir="<posDir>" --negDir="<negDir> --model="<modelFilePrefix>"'
-            print "\t Where posDir is directory of positive review files, \nnegDir a directory of negative review files, and \nmodel will be the prefix of 10 names of the 10 generated model files.\nNames will be <prefix>_[0-9].nb"
+            printHelp()
             sys.exit(1)
-        elif opt in ('-p', '--posDir'):
-            posDir = arg 
-        elif opt in ('-n', '--negDir'):
-            negDir = arg 
+        elif opt == '-i':
+            MODE_EACH = True
+        elif opt == '-a':
+            MODE_ALL = True
+        elif opt == '-b':
+            MODE_ALL = True
+            MODE_EACH = True
+        elif opt in ('-=d', '--dir'):
+            dir = arg 
         elif opt in ('-m', '--model'):
-            modelFile = arg 
+            modelFilePrefix = arg 
+        
             
-    if not os.path.exists(posDir):
-        print '\nPath {0} does not exist'.format(posDir)
+    if not os.path.exists(dir):
+        print '\nPath {0} does not exist'.format(dir)
         sys.exit()
     
-    if not os.path.exists(negDir):
-        print '\nPath {0} does not exist'.format(negDir)
-        sys.exit()
+    if not MODE_ALL and not MODE_EACH:
+        print '\nERROR: Please give a mode, -i, -a, or -b.'
+        printHelp() 
+        sys.exit(2)
     
     start = time.clock()
     
-    posModels = [] 
-    negModels = [] 
-    for i in range(10):
-        posModels.append(FeatureSet(polarity = 1))
-        negModels.append(FeatureSet(polarity = 0))
-    
-    # Read each file, counting unigrams and bigrams as we do
-    print 'Reading positive directory {0} into 10 folds...'.format(posDir)
-    read_with_10fold_validation(posDir, posModels)
-    #readReviewDirectory(posDir, posModel)
-    
-    print 'Reading negative directory {0} into 10 folds...'.format(negDir)
-    read_with_10fold_validation(negDir, negModels)
-    #readReviewDirectory(negDir, negModel)
-    
-    # Find Log MLE probabilities based on counts
-    print 'Calculating log MLE probabilities of unigram and bigram features...'
-    for i in range(10):
-        posModels[i].calculateProbabilities()
-        negModels[i].calculateProbabilities()
-   
-    # Write to model files 
-    for i in range(10):
-        fileName = modelFile + '_' + repr(i) + '.nb'
-        print 'Writing to model file: {0}...'.format(fileName)
-        writeModelFile(fileName, posModels[i], negModels[i])
+    if MODE_EACH:
+        logging.info('\nStarting modeEach()...')
+        modeEach(dir, modelFilePrefix)
+        logging.info('\nFinished modeEach()...')
     
     end = time.clock() - start
     print 'Finished generating model files in time: {0}'.format(end)
+    logging.info('\nGeneration done in time {0}\nDONE\n\n'.format(end))
+    print '\nDONE\n\n'
+    
     
 if __name__ == "__main__":
     main(sys.argv[1:])
