@@ -25,7 +25,9 @@ from scrapy.contrib.spiders import CrawlSpider, Rule
 from scrapy.contrib.linkextractors.sgml import SgmlLinkExtractor
 from scrapy import log
 from alembic.items import DocItem
-from selenium import selenium
+from selenium import webdriver
+from selenium.webdriver.remote import webelement
+#from selenium import selenium
 import time
 
 class Cdc_archive_spider(scrapy.Spider):
@@ -55,9 +57,13 @@ class Cdc_archive_spider(scrapy.Spider):
         # Start up Selenium
         log.msg("starting selenium server...", level=log.INFO)
         self.verificationErrors = []
-        self.selenium=selenium("localhost",4444, "*chrome", "http://www.cdc.gov/media/") #start selenium with baseURL
-        self.selenium.start()
-        log.msg("selenium server started!", level=log.INFO)
+        #self.selenium=selenium("localhost",4444, "*chrome", "http://www.cdc.gov/media/") 
+        self.driver = webdriver.Firefox()
+        
+        #start selenium with baseURL
+        #self.selenium.start()
+        #log.msg("selenium server started!", level=log.INFO)
+        log.msg("selenium driver started!", level=log.INFO)
         
         # print "Name: ", self.selenium.__class__.__name__
         # print "Class: ",self.selenium.__class__
@@ -66,33 +72,37 @@ class Cdc_archive_spider(scrapy.Spider):
         
         
         # Open top url 
-        self.selenium.open(self.topURL)
+        #self.selenium.open(self.topURL)
+        self.driver.get(self.topURL)
         time.sleep(5) # Wait for javascript to load
         
         # and get list of URLs
         xpath_getlinks = "//ul[contains(@id, 'pressrelease')]/li/a[contains(@class, 'item-title')]"
-        matches = 0 
-        matches = self.selenium.get_xpath_count(xpath_getlinks)
-        print "Hits: ", matches
+        #matches = 0 
+        #matches = self.selenium.get_xpath_count(xpath_getlinks)
+        #print "Hits: ", matches
         #sites = self.selenium.get_text(xpath_getlinks)
         
         # see http://stackoverflow.com/questions/17975471/selenium-with-scrapy-for-dynamic-page
-        sites = self.selenium.find_elements_by_xpath(xpath_getlinks)
-        log.msg("Found urls: \n{0}".format(sites), level=log.INFO)
-        print "Found {0} sites: \n{1}".format(len(sites), sites) 
+        linkElements = self.driver.find_elements_by_xpath(xpath_getlinks) #WebElement list
         
-        # For testing, we'll get just the first five
-        #self.start_urls.append(sites[0])
-        # self.start_urls.append(sites[1])
-        # self.start_urls.append(sites[2])
-        # self.start_urls.append(sites[3])
-        # self.start_urls.append(sites[4])
+        articles = []
+        for e in linkElements:
+            articles.append(e.get_attribute('href'))
         
-    
+        log.msg("Found articles: \n{0}".format(articles), level=log.INFO)
+        print "Found {0} articles: \n{1}".format(len(articles), articles) 
+        
+        # Add articles links to start_urls 
+        Cdc_archive_spider.start_urls.extend(articles)
+        
+        # Now scrapy will call parse() on each article 
+        
     def __del__(self):
-        self.selenium.stop()
+        #self.selenium.stop()
         log.msg("Verification Errors: \n{0}".format(self.verificationErrors), level=log.INFO)
         log.msg("DONE", level=log.INFO)
+        self.driver.close()
         print "DONE"
         #super.__del__(self) -->#Causes exception that says scrapy.Spider has no __del__() ?
     
@@ -100,17 +110,18 @@ class Cdc_archive_spider(scrapy.Spider):
         """
         Called automatically by scrapy on every start_url
         """
+        print "Processing: ", ""+response.url
         log.msg("Processing url: {0}".format(""+response.url), level=log.INFO)
-        sel = Selector(response)
+        sel = scrapy.Selector(response)
         items = []
         
         item = DocItem()
         item['session_id'] = self.session_id
-        item['depth'] = response.meta["depth"]
-        item['link'] = response.url 
-        item['date'] = sel.xpath("//span[contains(@itemprop, 'dateModified')]").extract()
         
-        title = sel.xpath("./h1/text()").extract()
+        item['link'] = response.url 
+        item['date'] = sel.xpath("//span[contains(@itemprop, 'dateModified')]/text()").extract()
+        
+        title = sel.xpath("(//h1)[1]/text()").extract()
         item['title'] = title
         log.msg("\tTitle: {0}".format(title), level=log.INFO)
         

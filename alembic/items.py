@@ -14,7 +14,6 @@ class DmozItem(scrapy.Item):
 
 class DocItem(scrapy.Item):
     session_id = scrapy.Field()
-    depth = scrapy.Field()
     title = scrapy.Field() 
     link = scrapy.Field()
     date = scrapy.Field()
