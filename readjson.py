@@ -3,6 +3,7 @@ import sys
 import getopt
 import os
 import codecs
+import nltk
 
 def read(fileName):
     try:
@@ -23,12 +24,14 @@ def writeDoc(item, fileName):
         title = item['title'][0]
         
         body = item['body']
-        body = cleanBody(body)
+        sentences = cleanBody(body)
         
         file.write("{0}\n".format(link))
         file.write("{0}\n".format(date))
         file.write("{0}\n".format(title))
-        file.write("{0}\n".format(body.encode('utf-8')))
+        
+        for s in sentences:
+            file.write("{0}\n".format(s.encode('utf-8')))
         
         file.close()
     except:
@@ -37,13 +40,17 @@ def writeDoc(item, fileName):
         
 def cleanBody(body):
     """
-    Clean any other markup, and join paragraphs.
+    Clean any other markup, join paragraphs, and separate by sentence
     """
     text = u""
     for p in body:
-        text = text + p + '\n'
-        
-    return text
+        text = text + p
+    
+    # Fetch a tokenizer for sentence segmentation
+    sent_tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
+    sentences = sent_tokenizer.tokenize(text)
+    
+    return sentences
         
         
 def printItem(item):
