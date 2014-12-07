@@ -78,11 +78,13 @@ class FeatureSet():
         return boolExists
      
     def updateUnigrams(self, unigram):
+        # Tally counts to model
         if self.addUnigram(unigram.word):
             # Compensate for one count of addUngiram
             self.words[unigram.word].count += unigram.count - 1  
     
     def updateBigrams(self, bigram):
+       # Tally counts to model
         if self.addBigram(bigram.word1, bigram.word2):
             # Compensate for one count of addBigram
             self.words[bigram.word1].bigrams[bigram.word2].count += bigram.count - 1
@@ -112,14 +114,14 @@ class FeatureSet():
         k = 1               # smoothing constant
         V = len(self.words) # vocab size
         for unigram in self.words.itervalues():
-            #unigram.probability =  (unigram.count + k) / (self.numTokens + V)
-            unigram.probability =  (unigram.count) / (self.numTokens)
+            unigram.probability =  (unigram.count + k) / (self.numTokens + V)
+            #unigram.probability =  (unigram.count) / (self.numTokens)
             unigram.probability = math.log(unigram.probability, 2)
         
             # TODO DEBUG did add one to denominator as well, unsure if necessary
             for bigram in unigram.bigrams.itervalues():
-                #bigram.probability = (bigram.count + k) / (unigram.count + V) 
-                bigram.probability = (bigram.count) / (unigram.count) 
+                bigram.probability = (bigram.count + k) / (unigram.count + V) 
+                #bigram.probability = (bigram.count) / (unigram.count) 
                 bigram.probability = math.log(bigram.probability, 2)
                 
     def naiveBayes(self, vector):
@@ -182,20 +184,26 @@ class Bigram():
 ###################################################################################################
 
 def processUnigram(word, vector):
+    """ Adds feature to vector or increases its count in vector
+    """
+
     unigram, exists = vector.getUnigram(word)
-    if not exists:
-        vector.addUnigram(word)
+    vector.addUnigram(word)
     
 def processFeature(prevWord, word, vector):
-    # If n-grams exist in vector, skip as we only care about presence of feature in file, not duplicates 
+    """ Adds feature to vector or increases its count in vector
+    """
     
+    # We add feature whether it exists or not
     unigram, exists = vector.getUnigram(prevWord)
     if not exists:
         vector.addUnigram(prevWord)
+  
         
     bigram, exists = vector.getBigram(prevWord, word)
     if not exists:
         vector.addBigram(prevWord, word)
+   
         
     
     
@@ -287,15 +295,13 @@ def readReviewDirectory(directory, fileNames, model):
         print "ERROR: Problem reading directory at path {0}".format(directory)
         raise 
 
-def writeModelFile(modelFile, posModel, negModel):
+def writeModelFile(modelFile, model):
     try:
         file = open(modelFile, 'w')
         
-        # Write positive probabilities
+        # Write probabilities
         
-        file.write("positive probabilities:\n")
-        
-        for unigram in posModel.words.itervalues():
+        for unigram in model.words.itervalues():
             # Write the unigram probability 
             file.write('{0} {1} {2}\n'.format(unigram.probability, unigram.word, unigram.count))
             
@@ -303,17 +309,7 @@ def writeModelFile(modelFile, posModel, negModel):
             for bigram in unigram.bigrams.itervalues():
                 file.write('{0} {1} {2} {3}\n'.format(bigram.probability, bigram.word1, bigram.word2, bigram.count))
         
-        # Repeat for negative probabilities
         
-        file.write("negative probabilities:\n")
-        
-        for unigram in negModel.words.itervalues():
-            # Write the unigram probability 
-            file.write('{0} {1} {2}\n'.format(unigram.probability, unigram.word, unigram.count))
-            
-            # Then the bigrams for that word
-            for bigram in unigram.bigrams.itervalues():
-                file.write('{0} {1} {2} {3}\n'.format(bigram.probability, bigram.word1, bigram.word2, bigram.count))
                 
     except:
         print 'ERROR writing model file {0}'.format(modelFile)
@@ -338,7 +334,7 @@ def modeEach(dir, modelFilePrefix):
     # Read, process, and write each in turn. The upside here is in case of failure, we can resume from the point of failure.
     for i in range(len(names)):
         models.append(FeatureSet(polarity = 1))
-        fullPath = os.path.join(directory, name[i])
+        fullPath = os.path.join(dir, names[i])
         # Read each file, counting unigrams and bigrams as we do
         print 'Reading file {0}...'.format(fullPath)
         readFile(fullPath, models[i])
@@ -349,7 +345,7 @@ def modeEach(dir, modelFilePrefix):
         
         # Write to model file
         fileName = modelFilePrefix + '_' + repr(i) + '.model'
-        print 'Writing to model file: {0}...'.format(fileName)
+        print '\tWriting to model file: {0}...'.format(fileName)
         writeModelFile(fileName, models[i])
     
 def printHelp():
@@ -395,7 +391,7 @@ def main(argv):
         elif opt == '-b':
             MODE_ALL = True
             MODE_EACH = True
-        elif opt in ('-=d', '--dir'):
+        elif opt in ('-d', '--dir'):
             dir = arg 
         elif opt in ('-m', '--model'):
             modelFilePrefix = arg 
