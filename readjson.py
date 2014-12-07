@@ -19,16 +19,32 @@ def writeDoc(item, fileName):
     try:
         print "Writing doc {0}...".format(fileName)
         file = open(fileName, "w")
+        
         link = item['link']
-        date = item['date'][0]
-        title = item['title'][0]
+        
+        date = item['date']
+        if len(date) > 0:
+            date = date[0]
+        else:
+            date="NULL"
+        
+        title = item['title']
+        if len(title) > 0:
+            title = title[0]
+        else:
+            title = "NULL"
         
         body = item['body']
-        sentences = cleanBody(body)
+        sentences = []
+        if len(body) > 0:
+            sentences = cleanBody(body)
+        else:
+            sentences.append("NULL")
         
-        file.write("{0}\n".format(link))
-        file.write("{0}\n".format(date))
-        file.write("{0}\n".format(title))
+        # Make sure to encode unicode characters (converts tokens \uXXXX to right character)
+        file.write("{0}\n".format(link.encode('utf-8')))
+        file.write("{0}\n".format(date.encode('utf-8')))
+        file.write("{0}\n".format(title.encode('utf-8')))
         
         for s in sentences:
             file.write("{0}\n".format(s.encode('utf-8')))
@@ -59,32 +75,45 @@ def printItem(item):
     print "Title: ", item['title'] 
     print "First paragraph: \n", item['body'][0]
     print "Second paragraph: \n", item['body'][1]
+
+def printHelp():
+    print "\nUsage: python readjson.py -i <inputJsonFile> -o <outputFilePrefix>"
+    print "\t-i <inputJsonFile>\t\t*.json file of items to read in"
+    print '\talso can do --input="<inputJsonFile>"\n'
+    print "\t-o <outputFilePrefix>\t\tFor each item i, file <outputFilePrefix>_[i].txt will contain raw text with one sentence per line"
+    print '\talso can do --output="<outputFilePrefix>"\n'
+    print "\n"
     
 def main(argv):
+    outputPath = ""
     jsonFileName = ""
-    outputFileName = ""
 
     try:
-        opts, args = getopt.getopt(argv, "i:o:",["input=,output="])
+        opts, args = getopt.getopt(argv, "hi:o:",["input=,output="])
     except getopt.GetoptError:
+        printHelp()
         sys.exit(2)
     for opt, arg in opts:  
-        if opt in ("-i", "--input"):
+        if opt=="-h":
+            printHelp()
+            sys.exit(1)
+        elif opt in ("-i", "--input"):
             jsonFileName = arg
         elif opt in ("-o", "--output"):
-            outputFileName = arg
+            outputPath = arg
             
     if not os.path.exists(jsonFileName):
         print '\nPath {0} does not exist'.format(jsonFileName)
         sys.exit()
-        
+    
+    # Get all data
     data = read(jsonFileName)
     
-    print "Items: ", len(data)
-    print "First item\n---\n "
-    printItem(data[0]) 
-    
-    writeDoc(data[0], outputFileName)
+    # Write each item to a separate doc
+    for i in range(len(data)):
+        output = outputPath + '_' + repr(i) + '.txt'
+        writeDoc(data[i], output)
+        
     print "DONE writing docs"
     
   
