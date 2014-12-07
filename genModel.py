@@ -317,6 +317,28 @@ def writeModelFile(modelFile, model):
     else:
         file.close()
 
+def modeAll(dir, modelFilePrefix):        
+    print "\nStarting modeAll, generate model over collection of docs from ", dir
+    # Get doc names 
+    names = []
+    try:
+        names = os.listdir(dir)
+        names.sort()   
+        logging.debug("Sorted file names of directory {0} are: {1}".format(dir, names))
+    except:
+        print "ERROR: Problem reading directory at path {0}".format(dir)
+        raise
+
+    model = FeatureSet(polarity=1)
+    
+    # Process all documents into one model
+    readReviewDirectory(dir, names, model)
+    
+    model.calculateProbabilities()
+
+    fileName = modelFilePrefix + '_' + 'all.model'
+    writeModelFile(fileName, model)
+        
 def modeEach(dir, modelFilePrefix):
     print "\nStarting modeEach, generate model for each doc in ", dir
     # Get doc names 
@@ -412,6 +434,11 @@ def main(argv):
         logging.info('\nStarting modeEach()...')
         modeEach(dir, modelFilePrefix)
         logging.info('\nFinished modeEach()...')
+        
+    if MODE_ALL:
+        logging.info('\nStarting modeAll()...')
+        modeAll(dir, modelFilePrefix)
+        logging.info('\nFinished modeAll()...')
     
     end = time.clock() - start
     print 'Finished generating model files in time: {0}'.format(end)
