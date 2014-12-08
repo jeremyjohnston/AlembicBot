@@ -132,7 +132,14 @@ def rank(terms, models, colModel, weight=0.5, CUTOFF=10):
         
     # Sort by queryProbability to rank results  
     results = sorted(models, key=lambda m: m.queryProbability)
-    results.reverse() # We want largest probabilities first
+    
+    #BUG TODO: Might not need to reverse?
+    #VERIFIED: Reversing gets only base prob for all; not reversed has unique prob for each model.
+    #results.reverse() # We want largest probabilities first
+    
+    #TODO Def need to include bigram prob. Unigram only gives same prob to documents with term or terms. Too many documents contain common unigrams for top 10 results to differ.
+    #Do see meaningful difference when using many terms, as top 10 will have those with each term, with one term, and with none.
+    #Bigram prob would increase unique rankings
     
     for i in range(CUTOFF):
         results[i].rank = i 
