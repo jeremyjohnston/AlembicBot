@@ -22,6 +22,20 @@ from genModel import Unigram, Bigram, FeatureSet
 
 logging.basicConfig(filename="rank.log", level=logging.DEBUG)
 
+def readDirectory(dir):
+    names = []
+    models = []
+    try:
+        names = os.listdir(dir)
+        names.sort()
+        for name in names:
+            file = os.path.join(dir, name)
+            models.append(readModel(file))
+    except:
+        print "ERROR reading directory at path {0}".format(dir)
+        raise
+    finally:
+        return models
 
 def readModel(fileName):
     posSet = FeatureSet(polarity=1)
@@ -227,96 +241,71 @@ def sortDirectory(directory):
         raise
     else:
         return names
+
+def printHelp():
+    print 'Usage: \npython rank.py -d <dir> -c <col> -q <query> -o <outputFileName>'
+    print 'Program will rank documents based on given query, where rank #1 is best document.'
+    print 'Options:'
+    print '\t-d <dir>\t--dir="<dir>"\Give directory of individual model files to read'
+    print '\t-c <col>\t--col="<col>"\Give model file over a collection to read'
+    print '\t-o <outputFileName>\t--output="<outputFileName>"\tFile to write rank results in'
+    print '\t-q <query>\t--query="<query>"\tWhite space separated query terms'
+
+def checkPath(path):
+    if not os.path.exists(path):
+        print '\nPath {0} does not exist'.format(path)
+        return False
+    return True
         
 def main(argv):
-    posDir = ""   
-    negDir = ""      
-    modelFile = ""
+    dir = ""                # Directory of individual models 
+    col = ""                # Path to model over collection 
+    outputFileName = ""     # Where to write report of ranks 
+    query = ""              # Query text
     
     try:
-        opts, args = getopt.getopt(argv, "hp:n:m:",["posDir=", "negDir=", "model="])
+        opts, args = getopt.getopt(argv, "hd:c:q:o:",["dir=", "col=", "query=", "output="])
     except getopt.GetoptError:
-        print 'Usage: \npython testNB.py -p <posDir> -n <negDir> -m <modelFilePrefix>'
-        print 'or'
-        print 'python testNB.py --posDir="<posDir>" --negDir="<negDir>" --model="<modelFilePrefix>"'
-        print '\n<posDir> is directory of positive files, \n<negDir> directory of negative files, and \n<modelFile> the prefix of the 10 model files to use for testing.\nModel files are expected of form <prefix>_[0-9].nb to be used for 10 fold validation'
-        print '\nNote that directory reading is not recursive.'
+        printHelp()
         sys.exit(2)
     for opt, arg in opts:
         if opt == '-h':
-            print 'Usage: \npython testNB.py -p <posDir> -n <negDir> -m <modelFilePrefix>'
-            print 'or'
-            print 'python testNB.py --posDir="<posDir>" --negDir="<negDir>" --model="<modelFilePrefix>"'
-            print '\n<posDir> is directory of positive files, \n<negDir> directory of negative files, and \n<modelFile> the prefix of the 10 model files to use for testing.\nModel files are expected of form <prefix>_[0-9].nb to be used for 10 fold validation'
-            print '\nNote that directory reading is not recursive.'
+            printHelp()
             sys.exit(1)
-        elif opt in ('-p', '--posDir'):
-            posDir = arg 
-        elif opt in ('-n', '--negDir'):
-            negDir = arg 
-        elif opt in ('-m', '--model'):
-            modelFile = arg
+        elif opt in ('-d', '--dir'):
+            dir = arg 
+        elif opt in ('-c', '--col'):
+            col = arg 
+        elif opt in ('-o', '--output'):
+            outputFileName = arg
+        elif opt in ('-q', '--query'):
+            query = arg
             
-    if not os.path.exists(posDir):
-        print '\nPath {0} does not exist'.format(posDir)
+    if not checkPath(dir) or not checkPath(col):
         sys.exit()
-    
-    if not os.path.exists(negDir):
-        print '\nPath {0} does not exist'.format(negDir)
-        sys.exit()
-    
-    modelFiles = [""] * 10 
-    for i in range(10):
-        modelFiles[i] = modelFile + '_' + repr(i) + '.nb' 
-        
-        if not os.path.exists(modelFiles[i]):
-            print '\nPath {0} does not exist'.format(modelFiles[i])
-            sys.exit() 
-    
+     
     start = time.clock()
-        
+    
+    terms = query.split()
+    if len(terms) < 1:
+        print "Please give query terms, space delimited"
+        print "exiting..."
+        sys.exit()
+    
     # Read model files
-    posModels = [0] * 10 
-    negModels = [0] * 10 
+    models = readDirectory(dir)
+    colModel = readModel(col)
     
-    for i in range(10):
-        print 'Reading model file {0}...'.format(modelFiles[i])
-        posModels[i], negModels[i] = readModel(modelFiles[i])
+    # Rank using mixture model equation. We need to find best lambda using a dev set of data.
+    # Rank will return a list of the top N models.
+    results = rank(terms, models, colModel)
     
-    posacc = [0] * 10 
-    negacc = [0] * 10 
-    acc = [0] * 10 
-    
-    posacc = review_with_10fold_validation(1, posDir, posModels, negModels)
-    negacc = review_with_10fold_validation(0, negDir, posModels, negModels) 
-    overallAccuracy = 0 
-    for i in range(10):
-        acc[i] = (posacc[i] + negacc[i]) / 2
-        overallAccuracy += acc[i]
-    
-    overallAccuracy = overallAccuracy / 10 
-    
-    
-    
-    # Sort files into subset for training
-    # posFiles = sortDirectory(posDir)
-    # negFiles = sortDirectory(negDir)
-    
-    # # Read and evaluate each positive and negative document with Naive Bayes
-    # print 'Testing over directory {0}...'.format(posDir)
-    # acc1 = reviewFiles(1, posDir, posFiles, posModel, negModel)
-    
-    # print 'Testing over directory {0}...'.format(negDir)
-    # acc2 = reviewFiles(0, negDir, negFiles, posModel, negModel)
-    
-    # # Report average accuracy of model file over documents
-    # avg = (acc1 + acc2) / 2
+    # Write out the top N model data 
+    writeReport(results)
     
     end = time.clock() - start
     print 'Time of execution: {0} seconds'.format(end)
-    #print 'Accuracy over negative and positive documents: {0} , found in {1} seconds'.format(avg, end)
-    print 'Accuracies: {0}'.format(acc) 
-    print 'Average accuracy: {0}'.format(overallAccuracy)    
+    print 'DONE\n\n'
 
 if __name__ == "__main__":
     main(sys.argv[1:])
