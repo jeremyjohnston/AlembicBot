@@ -25,73 +25,50 @@ logging.basicConfig(filename="rank.log", level=logging.DEBUG)
 def readDirectory(dir):
     names = []
     models = []
+    currentName = ""
     try:
         names = os.listdir(dir)
         names.sort()
         for name in names:
+            currentName = name
             file = os.path.join(dir, name)
             models.append(readModel(file))
     except:
-        print "ERROR reading directory at path {0}".format(dir)
+        msg = "\n\nERROR reading directory at path {0}, failed on model file count {1} of {2} expected, last file name touched: {3}\n\n".format(dir, len(models), len(names), currentName)
+        print msg
+        logging.error(msg)
         raise
-    finally:
-        return models
+    
+    return models 
 
 def readModel(fileName):
-    posSet = FeatureSet(polarity=1)
-    negSet = FeatureSet(polarity=0)
+    model = FeatureSet(polarity=1)
+    model.modelFile = fileName 
     lineNum = 1
-    mode = 0
     
     try:
         file = open(fileName)
         
         for line in file:
             line.rstrip()
-            if line == "positive probabilities:\n":
-                mode = 1
-            elif line == "negative probabilities:\n":
-                mode = 2
-            else:         
-                # Add probabilities to posSet
-                if mode is 1:
+            
                    
-                    tokens = line.split()
-                    
-                    # Format: probability word count
-                    if len(tokens) == 3:  
-                        prob = float(tokens[0])
-                        word = tokens[1]
-                        count = int(tokens[2])
-                        posSet.words[word] = Unigram(word=word, count=count, probability=prob)
-                    # Format: probability word1 word2 count
-                    else:
-                        prob = float(tokens[0])
-                        word1 = tokens[1]
-                        word2 = tokens[2]
-                        count = int(tokens[3])
-                        posSet.words[word1].bigrams[word2] = Bigram(probability=prob, word1=word1, word2=word2, count=count)
-                        
-                
-                # Add probabilities to negSet
-                elif mode is 2:
-                    
-                    tokens = line.split()
-                    
-                    # Format: probability word count
-                    if len(tokens) == 3:  
-                        prob = float(tokens[0])
-                        word = tokens[1]
-                        count = int(tokens[2])
-                        negSet.words[word] = Unigram(word=word, count=count, probability=prob)
-                    # Format: probability word1 word2 count
-                    else:
-                        prob = float(tokens[0])
-                        word1 = tokens[1]
-                        word2 = tokens[2]
-                        count = int(tokens[3])
-                        negSet.words[word1].bigrams[word2] = Bigram(probability=prob, word1=word1, word2=word2, count=count)
-                    
+            tokens = line.split()
+            
+            # Process Unigram feature of format: probability word count
+            if len(tokens) == 3:  
+                prob = float(tokens[0])
+                word = tokens[1]
+                count = int(tokens[2])
+                model.words[word] = Unigram(word=word, count=count, probability=prob)
+            # Process Bigram feature of format: probability word1 word2 count
+            else:
+                prob = float(tokens[0])
+                word1 = tokens[1]
+                word2 = tokens[2]
+                count = int(tokens[3])
+                model.words[word1].bigrams[word2] = Bigram(probability=prob, word1=word1, word2=word2, count=count)
+                             
             lineNum += 1
                 
     except:
@@ -99,8 +76,74 @@ def readModel(fileName):
         raise
     else:
         file.close()
-        return posSet, negSet
+        return model
 
+#TODO: Add precision, recall and MRR functions, or do in separate evaluation program?        
+        
+def rank(terms, models, colModel, weight=0.5, CUTOFF=10):        
+    """ Rank using mixture model over given terms.
+
+        Rank of any model file M on term Q is:
+            P(Q | M, C) = W * P(Q | M) + (1-W) * P(Q | C)
+        
+        where
+        Q is query, 
+        M is individual model file, 
+        C is collection model file,
+        W is weight 
+        
+        For each term, sum their probabilities for final value.
+        Best rank is max probability.
+        
+        TODO: Consider that we should find probability for each term, and probability for each (term[i], term[j])
+    """ 
+    
+    if weight > 1:
+        msg = "\n\nERROR in rank.py:rank(); weight given should be in range [0, 1]\n\n"
+        logging.error(msg)
+        raise 
+    
+    ## First get Unigram probability sum 
+    # Pre-calculate base collection probability 
+    for term in terms:
+        colModel.queryProbability += (1 - weight) * model.getUnigram(term).probability 
+    
+    # Find probability sum for each 
+    for model in models:
+        for term in terms:
+            model.queryProbability += weight * model.getUnigram(term).probability
+        model.queryProbability += colModel.queryProbability
+    
+    ##
+    #TODO: Consider bigram term probability 
+        
+    # Sort by queryProbability to rank results  
+    results = sorted(models, key=lambda m: m.queryProbability)
+    results.reverse() # We want largest probabilities first
+    
+    for i in range(CUTOFF):
+        results[i].rank = i 
+    
+    # Return N best results, N = CUTOFF    
+    return results[0:CUTOFF]    
+        
+def writeReport(terms, results, outputFileName):
+    try:
+        file = open(outputFileName, 'w')
+        file.write("Best results over query terms: {0}\n".format(terms))
+        file.write("RANK\tPROBABILITY\t\tMODEL_FILE\t\tORIGIN_FILE\n")
+        for model in results:
+            file.write("{rank}\t{prob}\t\t{filename}\t\t{origin}\n".format(rank=model.rank, prob=model.queryProbability, filename=model.modelFile, origin=model.originFile))
+            
+    except:
+        msg = "ERROR writing result file {0}".format(outputFileName)
+        print msg 
+        logging.error(msg)
+        raise
+    finally:
+        file.close()
+        
+        
 def processUnigram(word, vector):
     unigram, exists = vector.getUnigram(word)
     if not exists:
@@ -117,8 +160,7 @@ def processFeature(prevWord, word, vector):
     if not exists:
         vector.addBigram(prevWord, word)        
         
-# TODO - rewrite for testing
-def evaluateTestFile(filename, posModel, negModel):
+def nb_evaluateTestFile(filename, posModel, negModel):
     guess = 0 
     
     try:
@@ -177,7 +219,7 @@ def evaluateTestFile(filename, posModel, negModel):
         file.close()
         return guess 
 
-def review_with_10fold_validation(polarity, directory, posModels, negModels):        
+def nb_review_with_10fold_validation(polarity, directory, posModels, negModels):        
     names = []
     parts = [[0]] * 10
     accuracies = [0] * 10  
@@ -197,7 +239,7 @@ def review_with_10fold_validation(polarity, directory, posModels, negModels):
             parts[i] = names[start:end]
             
             # Test part[i] against models[i], which are trained over all parts not part i 
-            accuracies[i] = reviewFiles(polarity, directory, parts[i], posModels[i], negModels[i])
+            accuracies[i] = nb_reviewFiles(polarity, directory, parts[i], posModels[i], negModels[i])
         
             
     except:
@@ -209,7 +251,7 @@ def review_with_10fold_validation(polarity, directory, posModels, negModels):
         return accuracies 
 
     
-def reviewFiles(polarity, directory, filenames, posModel, negModel):
+def nb_reviewFiles(polarity, directory, filenames, posModel, negModel):
     correct = 0 
     
     try:
@@ -218,7 +260,7 @@ def reviewFiles(polarity, directory, filenames, posModel, negModel):
         
         for name in filenames:
             fullPath = os.path.join(directory, name)
-            guess = evaluateTestFile(fullPath, posModel, negModel)
+            guess = nb_evaluateTestFile(fullPath, posModel, negModel)
             if guess == polarity:
                 correct += 1 
         
@@ -256,7 +298,23 @@ def checkPath(path):
         print '\nPath {0} does not exist'.format(path)
         return False
     return True
-        
+
+def rank_documents(dir, col, outputFileName, terms):
+    
+    # Read model files
+    print "Reading model files from {0} and {1}...".format(dir, col)
+    models = readDirectory(dir)
+    colModel = readModel(col)
+    
+    # Rank using mixture model equation. We need to find best lambda using a dev set of data.
+    # Rank will return a list of the top N models.
+    print "Ranking models over query terms: {0}...".format(terms)
+    results = rank(terms, models, colModel, weight)
+    
+    # Write out the top N model data
+    print "Writing report file {0}".format(outputFileName)    
+    writeReport(terms, results, outputFileName)
+    
 def main(argv):
     dir = ""                # Directory of individual models 
     col = ""                # Path to model over collection 
@@ -292,16 +350,7 @@ def main(argv):
         print "exiting..."
         sys.exit()
     
-    # Read model files
-    models = readDirectory(dir)
-    colModel = readModel(col)
     
-    # Rank using mixture model equation. We need to find best lambda using a dev set of data.
-    # Rank will return a list of the top N models.
-    results = rank(terms, models, colModel)
-    
-    # Write out the top N model data 
-    writeReport(results)
     
     end = time.clock() - start
     print 'Time of execution: {0} seconds'.format(end)

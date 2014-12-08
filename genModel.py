@@ -21,6 +21,13 @@ class FeatureSet():
         self.words = {} # dictionary of (word, unigram) pairs, and our feature set
         self.numTokens = 0 
         self.polarity = polarity
+        self.queryProbability = 0   # Probability of Query in model 
+        self.rank = 10000           # Rank for IR using mixture model. Rank 1 is best.  
+        
+        # Numbers came from an original document, and are written to a model file.
+        # We need to remember the file names for retrieval later 
+        self.originFile = ""            # To retrieve original document later
+        self.modelFile = ""             # Name of model file
     
     def getUnigram(self, word1):
         unigram = Unigram("NULL_DNE", 0, 0)
@@ -163,7 +170,6 @@ class FeatureSet():
                     
         return value
             
-    
 class Unigram():
     def __init__(self, word, count, probability):
         self.word = word 
