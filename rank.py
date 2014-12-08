@@ -105,13 +105,26 @@ def rank(terms, models, colModel, weight=0.5, CUTOFF=10):
     
     ## First get Unigram probability sum 
     # Pre-calculate base collection probability 
+    invWeight = 1 - weight
     for term in terms:
-        colModel.queryProbability += (1 - weight) * model.getUnigram(term).probability 
+        prob = 0 
+        unigram, exists = colModel.getUnigram(term)
+        if exists:
+            prob = unigram.probability
+            
+        colModel.queryProbability += invWeight * prob  
     
     # Find probability sum for each 
     for model in models:
+        # Sum term probabilities
         for term in terms:
-            model.queryProbability += weight * model.getUnigram(term).probability
+            prob = 0
+            unigram, exists = model.getUnigram(term)
+            if exists:
+                prob = unigram.probability
+            model.queryProbability += weight * prob 
+        
+        # Add collection prob as base probability
         model.queryProbability += colModel.queryProbability
     
     ##
@@ -133,7 +146,7 @@ def writeReport(terms, results, outputFileName):
         file.write("Best results over query terms: {0}\n".format(terms))
         file.write("RANK\tPROBABILITY\t\tMODEL_FILE\t\tORIGIN_FILE\n")
         for model in results:
-            file.write("{rank}\t{prob}\t\t{filename}\t\t{origin}\n".format(rank=model.rank, prob=model.queryProbability, filename=model.modelFile, origin=model.originFile))
+            file.write("{rank}\t\t{prob}\t\t\t\t{filename}\t\t{origin}\n".format(rank=model.rank, prob=model.queryProbability, filename=model.modelFile, origin=model.originFile))
             
     except:
         msg = "ERROR writing result file {0}".format(outputFileName)
@@ -299,7 +312,7 @@ def checkPath(path):
         return False
     return True
 
-def rank_documents(dir, col, outputFileName, terms):
+def rank_documents(dir, col, outputFileName, terms, weight=0.5):
     
     # Read model files
     print "Reading model files from {0} and {1}...".format(dir, col)
@@ -350,7 +363,8 @@ def main(argv):
         print "exiting..."
         sys.exit()
     
-    
+    # Rank documents by given models over given query terms 
+    rank_documents(dir, col, outputFileName, terms)
     
     end = time.clock() - start
     print 'Time of execution: {0} seconds'.format(end)
