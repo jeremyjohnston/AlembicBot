@@ -227,39 +227,19 @@ def readFile(filename, model):
         vector = FeatureSet(model.polarity)
         
         # Get the metadata 
-        vector.originFile = filename
-        vector.link = file[0].rstrip() 
-        vector.date = file[1].rstrip() 
-        vector.title = file[2].rstrip()
+        model.originFile = filename
+        model.link = file.readline().rstrip() 
+        model.date = file.readline().rstrip() 
+        model.title = file.readline().rstrip()
+        
+        # Process some of the metadata as part of language model 
+        processLine(model.link, vector)
+        processLine(model.date, vector)
+        processLine(model.title, vector)
         
         # Process each sentence for unigram and bigram features
         for line in file:
-            line.rstrip()
-            tokens = line.split()
-            
-            vector.numTokens += len(tokens)
-            
-            # Handle special case of 1 token
-            if len(tokens) == 1 :
-                processUnigram(tokens[0], vector)
-            # Handle normal line of at least two tokens (for zero tokens we do nothing)        
-            elif len(tokens) >= 2 :
-                q = deque(tokens)
-                
-                prevWord = q.popleft()
-                word = q.popleft() 
-                
-                processFeature(prevWord, word, vector) 
-                
-                prevWord = word 
-                
-                for t in q:
-                    word = t 
-                    
-                    processFeature(prevWord, word, vector)
-                    
-                    prevWord = word 
-                
+            processLine(line,vector)
             lineNum += 1
         
         # Tally each feature in vector and add to model
@@ -271,6 +251,34 @@ def readFile(filename, model):
     else:
         file.close()
 
+def processLine(line, vector):
+    line.rstrip()
+    tokens = line.split()
+    
+    vector.numTokens += len(tokens)
+    
+    # Handle special case of 1 token
+    if len(tokens) == 1 :
+        processUnigram(tokens[0], vector)
+    # Handle normal line of at least two tokens (for zero tokens we do nothing)        
+    elif len(tokens) >= 2 :
+        q = deque(tokens)
+        
+        prevWord = q.popleft()
+        word = q.popleft() 
+        
+        processFeature(prevWord, word, vector) 
+        
+        prevWord = word 
+        
+        for t in q:
+            word = t 
+            
+            processFeature(prevWord, word, vector)
+            
+            prevWord = word 
+            
+        
 def read_with_10fold_validation(directory, models):
     names = []
     parts = [[]] * 10
@@ -315,10 +323,10 @@ def writeModelFile(modelFile, model):
         file = open(modelFile, 'w')
         
         # Write the metadata
-        file.write('{0}\n').format(model.originFile)
-        file.write('{0}\n').format(model.link)
-        file.write('{0}\n').format(model.date)
-        file.write('{0}\n').format(model.title)
+        file.write('{0}\n'.format(model.originFile))
+        file.write('{0}\n'.format(model.link))
+        file.write('{0}\n'.format(model.date))
+        file.write('{0}\n'.format(model.title))
         
         # Write probabilities
         for unigram in model.words.itervalues():

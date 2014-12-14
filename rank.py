@@ -51,11 +51,10 @@ def readModel(fileName):
         
         
         # Read metadata
-        file = deque(file)
-        model.originFile = file.popleft()
-        model.link = file.popleft() 
-        model.date = file.popleft() 
-        model.title = file.popleft()
+        model.originFile = file.readline()
+        model.link = file.readline() 
+        model.date = file.readline() 
+        model.title = file.readline()
         
         # Read probabilities 
         for line in file:
@@ -89,7 +88,7 @@ def readModel(fileName):
 
 #TODO: Add precision, recall and MRR functions, or do in separate evaluation program?        
         
-def rank(terms, models, colModel, weight=0.5, CUTOFF=10):        
+def rank(terms, models, colModel, weight=0.6, CUTOFF=10):        
     """ Rank using mixture model over given terms.
 
         Rank of any model file M on term Q is:
@@ -135,6 +134,8 @@ def rank(terms, models, colModel, weight=0.5, CUTOFF=10):
         
         # Add collection prob as base probability
         model.queryProbability += colModel.queryProbability
+        
+        
     
     ##
     #TODO: Consider bigram term probability 
@@ -160,9 +161,16 @@ def writeReport(terms, results, outputFileName):
     try:
         file = open(outputFileName, 'w')
         file.write("Best results over query terms: {0}\n".format(terms))
-        file.write("RANK\tPROBABILITY\t\tMODEL_FILE\t\tORIGIN_FILE\n")
+        fmt = "{rank: <5}| {prob: <10}| {modelf: <{width}}| {originf: <{width}}\n"
+        file.write(fmt.format(rank='RANK', prob='PR', modelf='MODEL_FILE', originf='ORIGIN_FILE', width=25))
+        fmt = "{rank: <5}| {prob: <10.4f}| {modelf: <{width}}| {originf: <{width}}\n"
+        fixedWidth=25
         for model in results:
-            file.write("{rank}\t\t{prob}\t\t\t\t{filename}\t\t{origin}\n".format(rank=model.rank, prob=model.queryProbability, filename=model.modelFile, origin=model.originFile))
+            p = float(model.queryProbability)
+            temp = max(len(model.modelFile), len(model.originFile))
+            fixedWidth = max(fixedWidth, temp)
+            str = fmt.format(rank=model.rank, prob=p, modelf=model.modelFile, originf=model.originFile, width=25)
+            file.write(str)
             
     except:
         msg = "ERROR writing result file {0}".format(outputFileName)
