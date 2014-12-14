@@ -228,9 +228,9 @@ def readFile(filename, model):
         
         # Get the metadata 
         model.originFile = filename
-        model.link = file.readline().rstrip() 
-        model.date = file.readline().rstrip() 
-        model.title = file.readline().rstrip()
+        model.link = file.readline().rstrip().lower() 
+        model.date = file.readline().rstrip().lower() 
+        model.title = file.readline().rstrip().lower() 
         
         # Process some of the metadata as part of language model 
         processLine(model.link, vector)
@@ -259,20 +259,20 @@ def processLine(line, vector):
     
     # Handle special case of 1 token
     if len(tokens) == 1 :
-        processUnigram(tokens[0], vector)
+        processUnigram(tokens[0].lower(), vector)
     # Handle normal line of at least two tokens (for zero tokens we do nothing)        
     elif len(tokens) >= 2 :
         q = deque(tokens)
         
-        prevWord = q.popleft()
-        word = q.popleft() 
+        prevWord = q.popleft().lower() 
+        word = q.popleft().lower()  
         
         processFeature(prevWord, word, vector) 
         
         prevWord = word 
         
         for t in q:
-            word = t 
+            word = t.lower()  
             
             processFeature(prevWord, word, vector)
             

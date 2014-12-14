@@ -122,6 +122,8 @@ def rank(terms, models, colModel, weight=0.6, CUTOFF=10):
             
         colModel.queryProbability += invWeight * prob  
     
+    
+    
     # Find probability sum for each 
     for model in models:
         # Sum term probabilities
@@ -135,7 +137,11 @@ def rank(terms, models, colModel, weight=0.6, CUTOFF=10):
         # Add collection prob as base probability
         model.queryProbability += colModel.queryProbability
         
-        
+        # Square the prob 
+        model.queryProbability = math.pow(model.queryProbability, 2)
+    
+    # Square collection prob before we write to file
+    colModel.queryProbability = math.pow(colModel.queryProbability, 2)  
     
     ##
     #TODO: Consider bigram term probability 
@@ -143,9 +149,7 @@ def rank(terms, models, colModel, weight=0.6, CUTOFF=10):
     # Sort by queryProbability to rank results  
     results = sorted(models, key=lambda m: m.queryProbability)
     
-    #BUG TODO: Might not need to reverse?
-    #VERIFIED: Reversing gets only base prob for all; not reversed has unique prob for each model.
-    #results.reverse() # We want largest probabilities first
+    results.reverse()
     
     #TODO Def need to include bigram prob. Unigram only gives same prob to documents with term or terms. Too many documents contain common unigrams for top 10 results to differ.
     #Do see meaningful difference when using many terms, as top 10 will have those with each term, with one term, and with none.
@@ -154,13 +158,16 @@ def rank(terms, models, colModel, weight=0.6, CUTOFF=10):
     for i in range(CUTOFF):
         results[i].rank = i 
     
+   
+    
     # Return N best results, N = CUTOFF    
-    return results[0:CUTOFF]    
+    return results[0:CUTOFF]   
         
-def writeReport(terms, results, outputFileName):
+def writeReport(terms, results, outputFileName, collection):
     try:
         file = open(outputFileName, 'w')
         file.write("Best results over query terms: {0}\n".format(terms))
+        file.write("Note: Collection base probability = {0:.4f}\n".format(collection.queryProbability))
         fmt = "{rank: <5}| {prob: <10}| {modelf: <{width}}| {originf: <{width}}\n"
         file.write(fmt.format(rank='RANK', prob='PR', modelf='MODEL_FILE', originf='ORIGIN_FILE', width=25))
         fmt = "{rank: <5}| {prob: <10.4f}| {modelf: <{width}}| {originf: <{width}}\n"
@@ -180,7 +187,7 @@ def writeReport(terms, results, outputFileName):
     finally:
         file.close()
         
-        
+   
 def processUnigram(word, vector):
     unigram, exists = vector.getUnigram(word)
     if not exists:
@@ -350,7 +357,7 @@ def rank_documents(dir, col, outputFileName, terms, weight=0.5):
     
     # Write out the top N model data
     print "Writing report file {0}".format(outputFileName)    
-    writeReport(terms, results, outputFileName)
+    writeReport(terms, results, outputFileName, colModel)
     
 def main(argv):
     dir = ""                # Directory of individual models 
