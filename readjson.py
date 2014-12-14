@@ -41,11 +41,13 @@ def writeDoc(item, fileName):
         else:
             sentences.append("NULL")
         
-        # Make sure to encode unicode characters (converts tokens \uXXXX to right character)
+        # Write the article metadata. Make sure to encode unicode characters 
+        # (converts tokens \uXXXX to right character)
         file.write("{0}\n".format(link.encode('utf-8')))
         file.write("{0}\n".format(date.encode('utf-8')))
         file.write("{0}\n".format(title.encode('utf-8')))
         
+        # Write each sentence
         for s in sentences:
             file.write("{0}\n".format(s.encode('utf-8')))
         

@@ -49,6 +49,15 @@ def readModel(fileName):
     try:
         file = open(fileName)
         
+        
+        # Read metadata
+        file = deque(file)
+        model.originFile = file.popleft()
+        model.link = file.popleft() 
+        model.date = file.popleft() 
+        model.title = file.popleft()
+        
+        # Read probabilities 
         for line in file:
             line.rstrip()
             

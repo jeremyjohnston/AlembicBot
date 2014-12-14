@@ -24,10 +24,15 @@ class FeatureSet():
         self.queryProbability = 0   # Probability of Query in model 
         self.rank = 10000           # Rank for IR using mixture model. Rank 1 is best.  
         
-        # Numbers came from an original document, and are written to a model file.
-        # We need to remember the file names for retrieval later 
-        self.originFile = ""            # To retrieve original document later
-        self.modelFile = ""             # Name of model file
+        # Useful metadata
+        self.originFile = ""        # File of raw document text
+        self.modelFile = ""         # Model file from document 
+        
+        self.link = ""              # Web link to document source
+        self.date = ""              # Date of document posting
+        self.title = ""             # Title of document
+        
+        
     
     def getUnigram(self, word1):
         unigram = Unigram("NULL_DNE", 0, 0)
@@ -221,6 +226,12 @@ def readFile(filename, model):
         # Feature set just for this file
         vector = FeatureSet(model.polarity)
         
+        # Get the metadata 
+        vector.originFile = filename
+        vector.link = file[0].rstrip() 
+        vector.date = file[1].rstrip() 
+        vector.title = file[2].rstrip()
+        
         # Process each sentence for unigram and bigram features
         for line in file:
             line.rstrip()
@@ -234,8 +245,6 @@ def readFile(filename, model):
             # Handle normal line of at least two tokens (for zero tokens we do nothing)        
             elif len(tokens) >= 2 :
                 q = deque(tokens)
-                
-                
                 
                 prevWord = q.popleft()
                 word = q.popleft() 
@@ -305,8 +314,13 @@ def writeModelFile(modelFile, model):
     try:
         file = open(modelFile, 'w')
         
-        # Write probabilities
+        # Write the metadata
+        file.write('{0}\n').format(model.originFile)
+        file.write('{0}\n').format(model.link)
+        file.write('{0}\n').format(model.date)
+        file.write('{0}\n').format(model.title)
         
+        # Write probabilities
         for unigram in model.words.itervalues():
             # Write the unigram probability 
             file.write('{0} {1} {2}\n'.format(unigram.probability, unigram.word, unigram.count))
