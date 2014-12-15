@@ -82,7 +82,10 @@ def summarize(sentences, model, colModel):
         centralities[x] = c 
         
     # Sort centralities, highest first 
+    orderedS = sorted(centralities, key=centralities.__getitem__, reverse=True) 
     
+    # Return a list of the top sentences 
+    return [orderedS[0], orderedS[1], orderedS[2]]
     
 def tf_idf_cosine(x, y, tf, idf):
     """ Given two sentences x and y, finds tf_idf_cosine(x,y)
@@ -243,6 +246,9 @@ def main(argv):
     
     # Perform summarization over origin document 
     result.summary = summarize(result.sentences, result.model, result.colModel)
+    
+    for s in summary:
+        print s
     
     # Evaluate summarization
     
