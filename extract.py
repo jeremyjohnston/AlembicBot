@@ -34,9 +34,6 @@ class Results():
         self.colModel = ""
         self.sentences = []
         self.summary = ""
-        self.link 
-        self.date 
-        self.title
         
 
 def summarize(sentences, model, colModel):
@@ -54,14 +51,18 @@ def summarize(sentences, model, colModel):
         Refer to p792 J&M 
     """
     
+    print 'Finding centralities over {0} sentences...'.format(len(sentences))
+    
     # First fetch idf of each term in colModel, the count of the term
+    print '\t...computing idf values...'
     idf = {} 
-    for unigram in colModel.unigrams:
+    for unigram in colModel.words.itervalues():
         idf[unigram.word] = unigram.count
         
     # Fetch term frequencies; the number of bigrams here 
+    print '\t...computing tf values...'
     tf = {} 
-    for unigram in model.unigrams: 
+    for unigram in model.words.itervalues(): 
         tf[unigram.word] = len(unigram.bigrams) 
         
     K = len(sentences) 
@@ -70,9 +71,12 @@ def summarize(sentences, model, colModel):
     centralities = {}
     for s in sentences:
         centralities[s] = 0 
-        
+    
+    i = 0 
     for x in sentences:
+        print '\t...finding centrality for sentence #{0}...'.format(i)
         c = 0
+        setY = []
         setY.extend(sentences) 
         setY.remove(x) 
         for y in setY:
@@ -80,12 +84,14 @@ def summarize(sentences, model, colModel):
         
         c = (1/K) * c 
         centralities[x] = c 
+        i += 1
         
     # Sort centralities, highest first 
     orderedS = sorted(centralities, key=centralities.__getitem__, reverse=True) 
     
     # Return a list of the top sentences 
-    return [orderedS[0], orderedS[1], orderedS[2]]
+    # EDIT: Reducing to top sentence, as sentence boundaries are such that a sentence might already be one or two sentences
+    return [orderedS[0]] 
     
 def tf_idf_cosine(x, y, tf, idf):
     """ Given two sentences x and y, finds tf_idf_cosine(x,y)
@@ -108,20 +114,21 @@ def tf_idf_cosine(x, y, tf, idf):
     
     # Find each value of tf_idf_cosine equation
     
-    SUM_X = 0 
+    SUM_X = 1 
     for term in x:
         tfX = getFreq(tf, term)
         idfX = getFreq(idf, term)
         SUM_X += math.pow(tfX * idfX, 2)
         
-    SUM_Y = 0 
+    SUM_Y = 1 
     for term in y:
         tfY = getFreq(tf, term)
         idfY = getFreq(idf, term)
         SUM_Y += math.pow(tfY * idfY, 2)
         
-    
-    words = x.extend(y)
+    words = []
+    words.extend(x) 
+    words.extend(y)
     SUM_W = 0 
     for w in words:
         idf_W = 0
@@ -144,7 +151,7 @@ def tf_idf_cosine(x, y, tf, idf):
 def getFreq(freqlist, term):
     if term in freqlist:
         return freqlist[term] 
-    else
+    else:
         return 0 
     
 
@@ -168,16 +175,16 @@ def readResults(fileName):
     try:
         file = open(fileName)
         
-        result.query = file.readline().rstrip().split(':')[-1]        # get query terms
+        result.query = file.readline().rstrip().split(':')[-1].strip()  # get query terms
         collection = file.readline().rstrip().split(':')
-        result.baseP = float(collection[1])                           # get collection base prob 
-        result.colFile = collection[3]                                # get collection model
-        skip = file.readline()                                        # skip column headers
-        topResult = file.readline().rstrip().split('|')
-        result.p = float(topResult[1])                                # get result query prob
-        result.pDiff = result.p - result.pDiff
-        result.originFile = topResult[-1]                             # get origin document
-        result.modelFile = topResult[-2]                              # get model file
+        result.baseP = float(collection[1].strip())                     # get collection base prob 
+        result.colFile = collection[3].strip()                          # get collection model
+        skip = file.readline()                                          # skip column headers
+        topResult = file.readline().rstrip().split('|')                  
+        result.p = float(topResult[1].strip())                          # get result query prob
+        result.pDiff = result.p - result.pDiff                           
+        result.originFile = topResult[-1].strip()                       # get origin document        
+        result.modelFile = topResult[-2].strip()                        # get model file
         
         
     except:
@@ -192,9 +199,12 @@ def readResults(fileName):
 
   
 def readDoc(filename, result):
+    lineNum = 0 
+    
+    print 'Reading document: {0}'.format(filename)
+    
     try:
-        file = open(filename)
-        lineNum = 0 
+        file = open(filename) 
          
         # Get the metadata 
         result.link = file.readline().rstrip().lower() 
@@ -203,7 +213,7 @@ def readDoc(filename, result):
          
         # Process each sentence for unigram and bigram features
         for line in file:
-            result.sentences.extend(line)
+            result.sentences.append(line)
             lineNum += 1
         
          
@@ -212,6 +222,16 @@ def readDoc(filename, result):
         raise 
     else:
         file.close()
+
+def printSummary(result):
+    print 'Top result'
+    print '-----------'
+    print 'Link: ', result.model.link.strip() 
+    print 'Title: ', result.model.title.strip() 
+    print 'Date: ', result.model.date.strip()
+    print 'Summary: '
+    for s in result.summary:
+        print s.strip()
         
 def main(argv):
     resultFile = ""              
@@ -247,8 +267,8 @@ def main(argv):
     # Perform summarization over origin document 
     result.summary = summarize(result.sentences, result.model, result.colModel)
     
-    for s in summary:
-        print s
+    printSummary(result)
+   
     
     # Evaluate summarization
     
