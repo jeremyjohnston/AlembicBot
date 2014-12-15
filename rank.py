@@ -167,16 +167,16 @@ def writeReport(terms, results, outputFileName, collection):
     try:
         file = open(outputFileName, 'w')
         file.write("Best results over query terms: {0}\n".format(terms))
-        file.write("Note: Collection base probability = {0:.4f}\n".format(collection.queryProbability))
+        file.write("Collection base probability: {0:.4f} : Collection model file: {1}\n".format(collection.queryProbability, collection.modelFile))
         fmt = "{rank: <5}| {prob: <10}| {modelf: <{width}}| {originf: <{width}}\n"
         file.write(fmt.format(rank='RANK', prob='PR', modelf='MODEL_FILE', originf='ORIGIN_FILE', width=25))
         fmt = "{rank: <5}| {prob: <10.4f}| {modelf: <{width}}| {originf: <{width}}\n"
-        fixedWidth=25
+        fixedWidth=30
         for model in results:
             p = float(model.queryProbability)
             temp = max(len(model.modelFile), len(model.originFile))
             fixedWidth = max(fixedWidth, temp)
-            str = fmt.format(rank=model.rank, prob=p, modelf=model.modelFile, originf=model.originFile, width=25)
+            str = fmt.format(rank=model.rank, prob=p, modelf=model.modelFile, originf=model.originFile, width=fixedWidth)
             file.write(str)
             
     except:
