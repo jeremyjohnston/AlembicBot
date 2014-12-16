@@ -363,6 +363,12 @@ def modeAll(dir, modelFilePrefix):
     readReviewDirectory(dir, names, model)
     
     model.calculateProbabilities()
+    
+    # Correct the model metadata for a collection model 
+    model.title = "COLLECTION_MODEL" 
+    model.date = "NULL" 
+    model.link = "NULL"
+    model.originFile = dir
 
     fileName = modelFilePrefix + '_' + 'all.model'
     writeModelFile(fileName, model)
