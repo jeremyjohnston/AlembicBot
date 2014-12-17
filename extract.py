@@ -34,6 +34,8 @@ class Results():
         self.colModel = ""
         self.sentences = []
         self.summary = ""
+        self.rank = 1000
+        self.summaryCentrality = 0 
         
 
 def summarize(sentences, model, colModel):
@@ -69,12 +71,13 @@ def summarize(sentences, model, colModel):
     
     # Find centrality values 
     centralities = {}
+    bestC = 0 
     for s in sentences:
         centralities[s] = 0 
     
     i = 0 
     for x in sentences:
-        print '\t...finding centrality for sentence #{0}...'.format(i)
+        #print '\t...finding centrality for sentence #{0}...'.format(i)
         c = 0
         setY = []
         setY.extend(sentences) 
@@ -84,6 +87,8 @@ def summarize(sentences, model, colModel):
         
         c = (1/K) * c 
         centralities[x] = c 
+        if c > bestC:
+            bestC = c 
         i += 1
         
     # Sort centralities, highest first 
@@ -91,7 +96,7 @@ def summarize(sentences, model, colModel):
     
     # Return a list of the top sentences 
     # EDIT: Reducing to top sentence, as sentence boundaries are such that a sentence might already be one or two sentences
-    return [orderedS[0]] 
+    return [orderedS[0]], bestC  
     
 def tf_idf_cosine(x, y, tf, idf):
     """ Given two sentences x and y, finds tf_idf_cosine(x,y)
@@ -171,31 +176,57 @@ def printHelp():
 
 def readResults(fileName):
     lineNum = 1
-    result = Results()
+    lastline = ""
+    resultlist = []
     try:
         file = open(fileName)
         
-        result.query = file.readline().rstrip().split(':')[-1].strip()  # get query terms
+        queryterms = file.readline().rstrip().split(':')[-1].strip()  # get query terms
         collection = file.readline().rstrip().split(':')
-        result.baseP = float(collection[1].strip())                     # get collection base prob 
-        result.colFile = collection[3].strip()                          # get collection model
+        baseP = float(collection[1].strip())                     # get collection base prob 
+        colFile = collection[3].strip()                          # get collection model
+        
         skip = file.readline()                                          # skip column headers
-        topResult = file.readline().rstrip().split('|')                  
-        result.p = float(topResult[1].strip())                          # get result query prob
-        result.pDiff = result.p - result.pDiff                           
-        result.originFile = topResult[-1].strip()                       # get origin document        
-        result.modelFile = topResult[-2].strip()                        # get model file
+        
+        # Get each result 
+        for line in file:
+            if line.strip() == "":
+                continue
+            lastline = line 
+            result = Results()
+            result.query = queryterms 
+            result.baseP = baseP 
+            result.colFile = colFile 
+            topResult = line.rstrip().split('|')
+            #print 'topResult: ', topResult
+            result.rank = int(topResult[0].strip())         # get rank
+            #print 'rank: ', result.rank
+            result.p = float(topResult[1].strip())          # get result query prob
+            #print 'p: ', result.p 
+            result.pDiff = result.p - result.baseP 
+            #print 'pDiff: ', result.pDiff
+            result.originFile = topResult[3].strip()       # get origin document        
+            #print 'originFile: ', result.originFile 
+            result.modelFile = topResult[2].strip()        # get model file
+            #print 'modelFile: ', result.modelFile
+            resultlist.append(result)
+            #print 'appending'
+            
+            lineNum += 1
         
         
     except:
-        msg = "ERROR reading file: {0}".format(fileName)
+        msg = "ERROR reading file: {0} on line {1} of string: {2}".format(fileName, lineNum, lastline)
+        
         print msg 
         logging.error(msg)
         
             
     else:
         file.close()
-        return result
+        return resultlist
+        
+    return resultlist
 
   
 def readDoc(filename, result):
@@ -211,7 +242,7 @@ def readDoc(filename, result):
         result.date = file.readline().rstrip().lower() 
         result.title = file.readline().rstrip().lower() 
          
-        # Process each sentence for unigram and bigram features
+        # Get sentences 
         for line in file:
             result.sentences.append(line)
             lineNum += 1
@@ -223,15 +254,55 @@ def readDoc(filename, result):
     else:
         file.close()
 
+def printRecall(list):
+    recall = 0 
+    N = len(list)
+    for r in list:
+        if r.p > r.baseP:
+            recall += 1 
+            
+    print 'In top {1} results, {0} results of {1} relevant, that is PR > BASEPR'.format(recall, N)
+    
+def printMetrics(list):
+    pdiff = list[0].p - list[1].p
+    cdiff = list[0].summaryCentrality - list[1].summaryCentrality
+    print 'Comparing top two results, PR difference = ', pdiff 
+    print 'Comparing centralities, Centrality diffrence = ', cdiff
+        
 def printSummary(result):
-    print 'Top result'
+    print '\n\nRank {0} result'.format(result.rank)
     print '-----------'
     print 'Link: ', result.model.link.strip() 
     print 'Title: ', result.model.title.strip() 
     print 'Date: ', result.model.date.strip()
+    print 'Summary Centrality: ', result.summaryCentrality 
     print 'Summary: '
     for s in result.summary:
         print s.strip()
+
+def getTopResult(resultFile, summaryFile):
+    # Get results
+    resultlist = readResults(resultFile)
+    
+    # Let us compare the top two results 
+    #print resultlist
+    top2 = [resultlist[0], resultlist[1]]
+    
+    # Get document sentences
+    for result in top2:
+        readDoc(result.originFile, result)
+        
+        # Get top document model and collective model 
+        result.model = rank.readModel(result.modelFile)
+        result.colModel = rank.readModel(result.colFile)
+        
+        # Perform summarization over origin document 
+        result.summary, result.summaryCentrality = summarize(result.sentences, result.model, result.colModel)
+    
+    printRecall(resultlist)
+    printMetrics(top2)
+    printSummary(resultlist[0])
+    printSummary(resultlist[1])
         
 def main(argv):
     resultFile = ""              
@@ -254,25 +325,8 @@ def main(argv):
     if not checkPath(resultFile):
         sys.exit()
     
-    # Get results
-    result = readResults(resultFile)
-    
-    # Get top document sentences
-    readDoc(result.originFile, result)
-    
-    # Get top document model and collective model 
-    result.model = rank.readModel(result.modelFile)
-    result.colModel = rank.readModel(result.colFile)
-    
-    # Perform summarization over origin document 
-    result.summary = summarize(result.sentences, result.model, result.colModel)
-    
-    printSummary(result)
+    getTopResult(resultFile, summaryFile)
    
-    
-    # Evaluate summarization
-    
-    
-    
+  
 if __name__ == "__main__":
     main(sys.argv[1:])
