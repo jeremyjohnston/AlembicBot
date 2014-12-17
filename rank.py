@@ -88,7 +88,7 @@ def readModel(fileName):
 
 #TODO: Add precision, recall and MRR functions, or do in separate evaluation program?        
         
-def rank(terms, models, colModel, weight=0.6, CUTOFF=10):        
+def rank(terms, models, colModel, weight=0.6):        
     """ Rank using mixture model over given terms.
 
         Rank of any model file M on term Q is:
@@ -155,24 +155,39 @@ def rank(terms, models, colModel, weight=0.6, CUTOFF=10):
     #Do see meaningful difference when using many terms, as top 10 will have those with each term, with one term, and with none.
     #Bigram prob would increase unique rankings
     
-    for i in range(CUTOFF):
+    i = 0 
+    for r in results:
         results[i].rank = i 
+        i += 1 
     
    
     
-    # Return N best results, N = CUTOFF    
-    return results[0:CUTOFF]   
+    # Return results 
+    return results
         
-def writeReport(terms, results, outputFileName, collection):
+def writeReport(terms, results, outputFileName, collection, CUTOFF=10):
+    ''' Write N best results to file, where N = CUTOFF, 10 by default
+    '''
+
     try:
         file = open(outputFileName, 'w')
         file.write("Best results over query terms: {0}\n".format(terms))
         file.write("Collection base probability: {0:.4f} : Collection model file: {1}\n".format(collection.queryProbability, collection.modelFile))
+        
+        # Find number of relevant documents 
+        NR = 0 
+        ND = len(results)
+        for model in results:
+            if model.queryProbability > collection.queryProbability:
+                NR += 1
+        
+        file.write('Relevant docs found: {0} : Total docs: {1}\n'.format(NR, ND))
+        
         fmt = "{rank: <5}| {prob: <10}| {modelf: <{width}}| {originf: <{width}}\n"
         file.write(fmt.format(rank='RANK', prob='PR', modelf='MODEL_FILE', originf='ORIGIN_FILE', width=25))
         fmt = "{rank: <5}| {prob: <10.4f}| {modelf: <{width}}| {originf: <{width}}\n"
         fixedWidth=30
-        for model in results:
+        for model in results[0:CUTOFF]:
             p = float(model.queryProbability)
             temp = max(len(model.modelFile), len(model.originFile))
             fixedWidth = max(fixedWidth, temp)

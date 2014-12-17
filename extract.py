@@ -178,6 +178,8 @@ def readResults(fileName):
     lineNum = 1
     lastline = ""
     resultlist = []
+    NR = 0 
+    ND = 0 
     try:
         file = open(fileName)
         
@@ -185,6 +187,10 @@ def readResults(fileName):
         collection = file.readline().rstrip().split(':')
         baseP = float(collection[1].strip())                     # get collection base prob 
         colFile = collection[3].strip()                          # get collection model
+        
+        recall_numbers = file.readline().rstrip().split(':')
+        NR = int(recall_numbers[1].strip())
+        ND = int(recall_numbers[3].strip())
         
         skip = file.readline()                                          # skip column headers
         
@@ -224,9 +230,9 @@ def readResults(fileName):
             
     else:
         file.close()
-        return resultlist
+        return resultlist, NR, ND 
         
-    return resultlist
+    return resultlist, NR, ND 
 
   
 def readDoc(filename, result):
@@ -254,13 +260,17 @@ def readDoc(filename, result):
     else:
         file.close()
 
-def printRecall(list):
+def printRecall(list, NR, ND):
     recall = 0 
     N = len(list)
     for r in list:
         if r.p > r.baseP:
             recall += 1 
             
+    print 'Relevant docs total: ', NR
+    print 'Total docs: ', ND 
+    print 'Recall: ', recall / NR      
+    print 'Precision: ', recall / ND    
     print 'In top {1} results, {0} results of {1} relevant, that is PR > BASEPR'.format(recall, N)
     
 def printMetrics(list):
@@ -282,7 +292,10 @@ def printSummary(result):
 
 def getTopResult(resultFile, summaryFile):
     # Get results
-    resultlist = readResults(resultFile)
+    resultlist, NR, ND = readResults(resultFile)
+    
+    print 'For query: ', resultlist[0].query
+    
     
     # Let us compare the top two results 
     #print resultlist
@@ -299,7 +312,7 @@ def getTopResult(resultFile, summaryFile):
         # Perform summarization over origin document 
         result.summary, result.summaryCentrality = summarize(result.sentences, result.model, result.colModel)
     
-    printRecall(resultlist)
+    printRecall(resultlist, NR, ND)
     printMetrics(top2)
     printSummary(resultlist[0])
     printSummary(resultlist[1])
